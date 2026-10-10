@@ -1,32 +1,27 @@
 # AI Smart Traffic Management (Q-learning)
 
-An adaptive traffic-signal controller for a 4-way intersection, trained with
-reinforcement learning and compared against fixed-time and rule-based signals.
+Most traffic lights run on a fixed timer. They give 30 seconds to one road, then 30 seconds to the other, even if one road is empty and the other has a long line of cars. This project tries a different approach: a small AI agent that watches the queues at a four-way intersection and decides, second by second, whether to keep the current green or switch.
 
-## Files
-| File | Purpose |
-|---|---|
-| `traffic_env.py` | Intersection simulator (Poisson arrivals, 1 s steps, min/max green, all-red clearance) |
-| `agent.py` | Tabular Q-learning agent |
-| `train.py` | Trains on random traffic, saves `q_table.npy` + `training_curve.png` |
-| `evaluate.py` | Compares controllers on 4 scenarios, saves `results.png` |
+The agent is trained with Q-learning, a basic reinforcement learning method. It learns purely from trial and error in a simulation, with no hand-written timing rules.
 
-## Run
-```
-pip install -r requirements.txt
-python train.py
-python evaluate.py
-```
+How it works
 
-## How it works
-- **State:** queue on the green side, queue on the red side (6 buckets each), time in current phase (3 buckets).
-- **Actions:** keep the phase or switch (switching is blocked before 5 s green and forced at 40 s).
-- **Reward:** `-(total queued cars)/10`, minus 1.5 per switch to avoid flickering.
-- **Metric:** average delay per car = queue-seconds / cars departed.
+The intersection has four approaches (north, east, south, west) and two signal phases: north-south green or east-west green. Every simulated second the agent looks at the situation and picks one of two actions: keep the current phase, or switch.
 
-## Extending it
-- Emergency-vehicle priority (extra state bit + large reward for clearing its lane)
-- Multiple intersections (one agent each, share neighbour queues)
-- Deep Q-Network (replace the table with a small neural net)
-- Real data: replace Poisson arrivals with counts from a CSV or camera detector (YOLO)
-- SUMO/TraCI for realistic vehicle dynamics
+What the agent sees (the state):
+
+how many cars are waiting on the road that currently has green
+how many are waiting on the roads with red
+how long the current green has been on
+
+The queue sizes are grouped into six rough buckets (empty, 1-2, 3-5, 6-10, 11-18, 19+) so the table stays small enough to learn quickly.
+
+What it is rewarded for: fewer waiting cars. Each second costs a penalty proportional to the total queue length, plus a small extra penalty every time it switches, so the light does not flicker back and forth.
+
+Safety rules built into the simulator: a green phase lasts at least 5 seconds and at most 40 seconds, and every switch is followed by 2 seconds of all-red so the intersection can clear. The agent cannot override these.
+
+During training the agent plays thousands of short episodes with randomly changing traffic levels, so it does not just memorize one situation.
+
+Results
+
+I compared four controllers on the same random traffic (20 runs of 30 simulated minutes each, same seeds for everyone). The number is the average time a car spends waiting in the queue, in seconds. Lower is better.
